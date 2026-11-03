@@ -1,70 +1,3 @@
-cat << 'EOF' > setup.sh
-#!/bin/bash
-mkdir -p app/src/main/java/com/pixel/smartstack
-mkdir -p app/src/main/res/xml
-mkdir -p app/src/main/res/layout
-mkdir -p app/src/main/res/values
-mkdir -p .github/workflows
-
-cat << 'END' > settings.gradle.kts
-pluginManagement {
-    repositories { google(); mavenCentral(); gradlePluginPortal() }
-}
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories { google(); mavenCentral() }
-}
-rootProject.name = "SmartStack"
-include(":app")
-END
-
-cat << 'END' > build.gradle.kts
-plugins {
-    id("com.android.application") version "8.5.2" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
-}
-END
-
-cat << 'END' > gradle.properties
-org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-android.useAndroidX=true
-END
-
-cat << 'END' > app/build.gradle.kts
-plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-}
-
-android {
-    namespace = "com.pixel.smartstack"
-    compileSdk = 35
-
-    defaultConfig {
-        applicationId = "com.pixel.smartstack"
-        minSdk = 31
-        targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
-    }
-    buildFeatures { compose = true }
-    composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions { jvmTarget = "17" }
-}
-
-dependencies {
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.activity:activity-compose:1.9.1")
-    implementation("androidx.compose.material3:material3:1.2.1")
-    implementation("androidx.glance:glance-appwidget:1.1.1")
-    implementation("androidx.glance:glance-material3:1.1.1")
-}
-END
-
 cat << 'END' > app/src/main/AndroidManifest.xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
@@ -84,39 +17,258 @@ cat << 'END' > app/src/main/AndroidManifest.xml
                 android:name="android.appwidget.provider"
                 android:resource="@xml/smart_stack_info" />
         </receiver>
+        <service
+            android:name=".StackService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
     </application>
 </manifest>
 END
 
-cat << 'END' > app/src/main/res/layout/widget_loading.xml
+cat << 'END' > app/src/main/res/layout/widget_stack.xml
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#1C1C1E">
+    android:layout_height="match_parent">
+    <StackView
+        android:id="@+id/stack"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:loopViews="true" />
     <TextView
+        android:id="@+id/empty"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:text="Loading Smart Stack..."
+        android:text="Loading..."
         android:textColor="#FFFFFF" />
 </FrameLayout>
 END
 
-cat << 'END' > app/src/main/res/xml/smart_stack_info.xml
-<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="250dp"
-    android:minHeight="140dp"
-    android:targetCellWidth="4"
-    android:targetCellHeight="2"
-    android:updatePeriodMillis="1800000"
-    android:initialLayout="@layout/widget_loading"
-    android:resizeMode="horizontal|vertical"
-    android:widgetCategory="home_screen" />
+cat << 'END' > app/src/main/res/layout/widget_card_clock.xml
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/card_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <ImageView
+        android:id="@+id/card_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingLeft="28dp"
+        android:paddingRight="28dp">
+        <TextClock
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:format12Hr="EEEE, MMM d"
+            android:format24Hr="EEEE, MMM d"
+            android:textAllCaps="true"
+            android:textColor="#FF6B6B"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+        <TextClock
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:format12Hr="h:mm"
+            android:format24Hr="HH:mm"
+            android:fontFamily="sans-serif-light"
+            android:textColor="#FFFFFF"
+            android:textSize="58sp" />
+    </LinearLayout>
+</FrameLayout>
+END
+
+cat << 'END' > app/src/main/res/layout/widget_card_text.xml
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/card_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <ImageView
+        android:id="@+id/card_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingLeft="28dp"
+        android:paddingRight="28dp">
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/body"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp" />
+    </LinearLayout>
+</FrameLayout>
+END
+
+cat << 'END' > app/src/main/java/com/pixel/smartstack/SmartStackWidget.kt
+package com.pixel.smartstack
+
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.RadialGradient
+import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.SweepGradient
+import android.net.Uri
+import android.widget.RemoteViews
+import android.widget.RemoteViewsService
+
+class SmartStackReceiver : AppWidgetProvider() {
+    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        for (id in ids) {
+            val serviceIntent = Intent(context, StackService::class.java)
+            serviceIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+            serviceIntent.data = Uri.parse(serviceIntent.toUri(Intent.URI_INTENT_SCHEME))
+
+            val views = RemoteViews(context.packageName, R.layout.widget_stack)
+            views.setRemoteAdapter(R.id.stack, serviceIntent)
+            views.setEmptyView(R.id.stack, R.id.empty)
+
+            val open = Intent(context, MainActivity::class.java)
+            val pending = PendingIntent.getActivity(
+                context, 0, open,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+            views.setPendingIntentTemplate(R.id.stack, pending)
+            manager.updateAppWidget(id, views)
+        }
+        manager.notifyAppWidgetViewDataChanged(ids, R.id.stack)
+    }
+}
+
+class StackService : RemoteViewsService() {
+    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
+        return StackFactory(applicationContext)
+    }
+}
+
+class StackFactory(private val ctx: Context) : RemoteViewsService.RemoteViewsFactory {
+    private var weather = ""
+    private var note = ""
+
+    override fun onCreate() {}
+
+    override fun onDataSetChanged() {
+        val prefs = ctx.getSharedPreferences("smart_stack_prefs", Context.MODE_PRIVATE)
+        weather = prefs.getString("weather", "72°F • Sunny & Clear") ?: ""
+        note = prefs.getString("note", "⚡ Buy coffee\n📦 Pick up package\n🎯 Gym at 6 PM") ?: ""
+    }
+
+    override fun onDestroy() {}
+    override fun getCount(): Int = 3
+    override fun getLoadingView(): RemoteViews? = null
+    override fun getViewTypeCount(): Int = 2
+    override fun getItemId(position: Int): Long = position.toLong()
+    override fun hasStableIds(): Boolean = true
+
+    override fun getViewAt(position: Int): RemoteViews {
+        val rv: RemoteViews
+        if (position == 0) {
+            rv = RemoteViews(ctx.packageName, R.layout.widget_card_clock)
+            rv.setImageViewBitmap(
+                R.id.card_bg,
+                CardArt.draw(520, 300, Color.parseColor("#2B2B30"), Color.parseColor("#0E0E11"),
+                    Color.parseColor("#FF6B6B"), Color.parseColor("#FFB36B"))
+            )
+        } else if (position == 1) {
+            rv = textCard("☀ WEATHER", weather, Color.parseColor("#CFE6FF"),
+                CardArt.draw(520, 300, Color.parseColor("#2E7BFF"), Color.parseColor("#0A2A6B"),
+                    Color.parseColor("#7FD6FF"), Color.parseColor("#FFFFFF")))
+        } else {
+            rv = textCard("📝 NOTES", note, Color.parseColor("#FFD60A"),
+                CardArt.draw(520, 300, Color.parseColor("#2B2B30"), Color.parseColor("#0E0E11"),
+                    Color.parseColor("#FFD60A"), Color.parseColor("#FF9F0A")))
+        }
+        rv.setOnClickFillInIntent(R.id.card_root, Intent())
+        return rv
+    }
+
+    private fun textCard(title: String, body: String, titleColor: Int, bg: Bitmap): RemoteViews {
+        val rv = RemoteViews(ctx.packageName, R.layout.widget_card_text)
+        rv.setImageViewBitmap(R.id.card_bg, bg)
+        rv.setTextViewText(R.id.title, title)
+        rv.setTextColor(R.id.title, titleColor)
+        rv.setTextViewText(R.id.body, body)
+        return rv
+    }
+}
+
+object CardArt {
+    fun draw(w: Int, h: Int, top: Int, bottom: Int, glowA: Int, glowB: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val m = 18f
+        val rad = 56f
+        val box = RectF(m, m, w - m, h - m)
+        val sweep = intArrayOf(glowA, glowB, glowA, glowB, glowA)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        // soft outer glow
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 10f
+        p.maskFilter = BlurMaskFilter(14f, BlurMaskFilter.Blur.NORMAL)
+        p.shader = SweepGradient(w / 2f, h / 2f, sweep, null)
+        p.alpha = 150
+        c.drawRoundRect(box, rad, rad, p)
+        p.maskFilter = null
+
+        // card body
+        p.style = Paint.Style.FILL
+        p.alpha = 255
+        p.shader = LinearGradient(0f, m, 0f, h - m, top, bottom, Shader.TileMode.CLAMP)
+        c.drawRoundRect(box, rad, rad, p)
+
+        // light bloom from the top-left
+        p.shader = RadialGradient(
+            w * 0.25f, m, w * 0.7f,
+            intArrayOf(0x44FFFFFF, 0x00FFFFFF), null, Shader.TileMode.CLAMP
+        )
+        c.drawRoundRect(box, rad, rad, p)
+
+        // glass sheen across the top half
+        p.shader = LinearGradient(0f, m, 0f, h * 0.5f, 0x2AFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.drawRoundRect(RectF(m, m, w - m, h * 0.5f), rad, rad, p)
+
+        // crisp gradient border
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 4f
+        p.shader = SweepGradient(w / 2f, h / 2f, sweep, null)
+        c.drawRoundRect(box, rad, rad, p)
+        return bmp
+    }
+}
 END
 
 cat << 'END' > app/src/main/java/com/pixel/smartstack/MainActivity.kt
 package com.pixel.smartstack
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -126,51 +278,55 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.glance.appwidget.updateAll
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("smart_stack_prefs", Context.MODE_PRIVATE)
         setContent {
-            var noteText by remember { mutableStateOf(prefs.getString("note", "⚡ Buy coffee\n📦 Pick up package\n🎯 Gym at 6 PM") ?: "") }
-            var weatherText by remember { mutableStateOf(prefs.getString("weather", "72°F • Sunny & Clear") ?: "") }
-            val scope = rememberCoroutineScope()
-
+            var noteText by remember {
+                mutableStateOf(prefs.getString("note", "⚡ Buy coffee\n📦 Pick up package\n🎯 Gym at 6 PM") ?: "")
+            }
+            var weatherText by remember {
+                mutableStateOf(prefs.getString("weather", "72°F • Sunny & Clear") ?: "")
+            }
             Column(
                 modifier = Modifier.fillMaxSize().background(Color(0xFF000000)).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 Text("iOS Smart Stack", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                Text("Customize your scrollable iPhone-style widget for your Pixel 10 Pro.", color = Color.Gray, fontSize = 15.sp)
-
+                Text("Customize your swipeable stack widget.", color = Color.Gray, fontSize = 15.sp)
                 OutlinedTextField(
                     value = weatherText,
                     onValueChange = { weatherText = it },
                     label = { Text("Weather Card Text") },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                    )
                 )
-
                 OutlinedTextField(
                     value = noteText,
                     onValueChange = { noteText = it },
                     label = { Text("Notes Card Items") },
                     modifier = Modifier.fillMaxWidth().height(140.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                    )
                 )
-
                 Button(
                     onClick = {
                         prefs.edit().putString("note", noteText).putString("weather", weatherText).apply()
-                        scope.launch { SmartStackWidget().updateAll(this@MainActivity) }
+                        val mgr = AppWidgetManager.getInstance(this@MainActivity)
+                        val ids = mgr.getAppWidgetIds(
+                            ComponentName(this@MainActivity, SmartStackReceiver::class.java)
+                        )
+                        mgr.notifyAppWidgetViewDataChanged(ids, R.id.stack)
                     },
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth().height(54.dp)
@@ -183,200 +339,6 @@ class MainActivity : ComponentActivity() {
 }
 END
 
-cat << 'END' > app/src/main/java/com/pixel/smartstack/SmartStackWidget.kt
-package com.pixel.smartstack
-
-import android.content.Context
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.glance.*
-import androidx.glance.action.ActionParameters
-import androidx.glance.action.clickable
-import androidx.glance.appwidget.*
-import androidx.glance.appwidget.action.ActionCallback
-import androidx.glance.appwidget.action.actionRunCallback
-import androidx.glance.appwidget.lazy.LazyColumn
-import androidx.glance.appwidget.state.updateAppWidgetState
-import androidx.glance.layout.*
-import androidx.glance.text.FontWeight
-import androidx.glance.text.Text
-import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
-import java.text.SimpleDateFormat
-import java.util.*
-
-val CARD_INDEX_KEY = intPreferencesKey("card_index")
-
-class SmartStackReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = SmartStackWidget()
-}
-
-class FlipCardAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        updateAppWidgetState(context, glanceId) { prefs ->
-            val current = prefs[CARD_INDEX_KEY] ?: 0
-            prefs[CARD_INDEX_KEY] = (current + 1) % 3
-        }
-        SmartStackWidget().update(context, glanceId)
-    }
-}
-
-class SmartStackWidget : GlanceAppWidget() {
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val prefs = context.getSharedPreferences("smart_stack_prefs", Context.MODE_PRIVATE)
-        val note = prefs.getString("note", "⚡ Buy coffee\n📦 Pick up package\n🎯 Gym at 6 PM") ?: ""
-        val weather = prefs.getString("weather", "72°F • Sunny & Clear") ?: ""
-        val dateStr = SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(Date()).uppercase()
-        val timeStr = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
-
-        provideContent {
-            val state = currentState<Preferences>()
-            val activeCard = state[CARD_INDEX_KEY] ?: 0
-
-            Row(
-                modifier = GlanceModifier
-                    .fillMaxSize()
-                    .background(ColorProvider(Color(0xFF1C1C1E)))
-                    .cornerRadius(28.dp)
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Smooth Scrollable iPhone-Style Stack (Swipe Up/Down OR Tap to Flip)
-                LazyColumn(modifier = GlanceModifier.defaultWeight().fillMaxHeight()) {
-                    item {
-                        Column(
-                            modifier = GlanceModifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp)
-                                .clickable(actionRunCallback<FlipCardAction>())
-                        ) {
-                            when (activeCard) {
-                                0 -> ClockCard(dateStr, timeStr)
-                                1 -> WeatherCard(weather)
-                                else -> NotesCard(note)
-                            }
-                        }
-                    }
-                    item {
-                        // Scroll down to peek at all cards in the stack!
-                        Column(modifier = GlanceModifier.fillMaxWidth().padding(top = 8.dp)) {
-                            Text("↓ STACK OVERVIEW ↓", style = TextStyle(color = ColorProvider(Color(0xFF8E8E93)), fontSize = 11.sp, fontWeight = FontWeight.Bold))
-                            Spacer(GlanceModifier.height(8.dp))
-                            WeatherCard(weather)
-                            Spacer(GlanceModifier.height(10.dp))
-                            NotesCard(note)
-                        }
-                    }
-                }
-
-                // iPhone Smart Stack Side Dots Indicator
-                Column(
-                    modifier = GlanceModifier
-                        .fillMaxHeight()
-                        .padding(start = 10.dp)
-                        .clickable(actionRunCallback<FlipCardAction>()),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    for (i in 0..2) {
-                        val dotColor = if (i == activeCard) Color(0xFFFFFFFF) else Color(0xFF636366)
-                        Text("●", style = TextStyle(color = ColorProvider(dotColor), fontSize = 12.sp))
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun ClockCard(dateStr: String, timeStr: String) {
-        Column(
-            modifier = GlanceModifier
-                .fillMaxWidth()
-                .background(ColorProvider(Color(0xFF2C2C2E)))
-                .cornerRadius(22.dp)
-                .padding(16.dp)
-        ) {
-            Text(dateStr, style = TextStyle(color = ColorProvider(Color(0xFFFF453A)), fontSize = 13.sp, fontWeight = FontWeight.Bold))
-            Spacer(GlanceModifier.height(4.dp))
-            Text(timeStr, style = TextStyle(color = ColorProvider(Color.White), fontSize = 34.sp, fontWeight = FontWeight.Bold))
-            Text("Tap card or dots to flip • Scroll down for stack", style = TextStyle(color = ColorProvider(Color(0xFF8E8E93)), fontSize = 11.sp))
-        }
-    }
-
-    @Composable
-    private fun WeatherCard(weather: String) {
-        Column(
-            modifier = GlanceModifier
-                .fillMaxWidth()
-                .background(ColorProvider(Color(0xFF0A84FF)))
-                .cornerRadius(22.dp)
-                .padding(16.dp)
-        ) {
-            Text("☀️ WEATHER", style = TextStyle(color = ColorProvider(Color(0xFFE5F1FF)), fontSize = 12.sp, fontWeight = FontWeight.Bold))
-            Spacer(GlanceModifier.height(6.dp))
-            Text(weather, style = TextStyle(color = ColorProvider(Color.White), fontSize = 24.sp, fontWeight = FontWeight.Bold))
-            Text("H: 76°  L: 58° • Updated just now", style = TextStyle(color = ColorProvider(Color(0xFFD0E8FF)), fontSize = 12.sp))
-        }
-    }
-
-    @Composable
-    private fun NotesCard(note: String) {
-        Column(
-            modifier = GlanceModifier
-                .fillMaxWidth()
-                .background(ColorProvider(Color(0xFF2C2C2E)))
-                .cornerRadius(22.dp)
-                .padding(16.dp)
-        ) {
-            Text("📝 NOTES & TO-DO", style = TextStyle(color = ColorProvider(Color(0xFFFFD60A)), fontSize = 12.sp, fontWeight = FontWeight.Bold))
-            Spacer(GlanceModifier.height(6.dp))
-            Text(note, style = TextStyle(color = ColorProvider(Color.White), fontSize = 15.sp))
-        }
-    }
-}
-END
-
-cat << 'END' > .github/workflows/build-apk.yml
-name: Build Smart Stack APK
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.7'
-
-      - name: Build Debug APK
-        run: gradle assembleDebug
-
-      - name: Upload APK for Pixel 10 Pro
-        uses: actions/upload-artifact@v4
-        with:
-          name: iOS-Smart-Stack-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-END
-
 git add .
-git commit -m "Build iOS Smart Stack Widget App"
+git commit -m "Swipeable snapping stack with glass clock card"
 git push origin main
-EOF
-bash setup.sh
