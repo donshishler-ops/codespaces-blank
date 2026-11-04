@@ -8,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,51 +23,95 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("smart_stack_prefs", Context.MODE_PRIVATE)
+
         setContent {
-            var noteText by remember {
-                mutableStateOf(prefs.getString("note", "⚡ Buy coffee\n📦 Pick up package\n🎯 Gym at 6 PM") ?: "")
+            var cards by remember { mutableStateOf(StackSettings.getCards(this)) }
+            var arrangement by remember { mutableStateOf(StackSettings.getArrangement(this)) }
+            var loop by remember { mutableStateOf(StackSettings.getLoop(this)) }
+            var newTitle by remember { mutableStateOf("") }
+            var newBody by remember { mutableStateOf("") }
+
+            fun sync() {
+                StackSettings.saveCards(this, cards)
+                StackSettings.setArrangement(this, arrangement)
+                StackSettings.setLoop(this, loop)
+                val mgr = AppWidgetManager.getInstance(this)
+                val ids = mgr.getAppWidgetIds(ComponentName(this, SmartStackReceiver::class.java))
+                mgr.notifyAppWidgetViewDataChanged(ids, R.id.stack)
             }
-            var weatherText by remember {
-                mutableStateOf(prefs.getString("weather", "72°F • Sunny & Clear") ?: "")
-            }
+
             Column(
                 modifier = Modifier.fillMaxSize().background(Color(0xFF000000)).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 Text("iOS Smart Stack", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                Text("Customize your swipeable stack widget.", color = Color.Gray, fontSize = 15.sp)
+
+                Text("Arrangement", color = Color.Gray, fontSize = 14.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "Stacked" to com.pixel.smartstack.Arrangement.STACKED,
+                        "Offset" to com.pixel.smartstack.Arrangement.OFFSET,
+                        "Centered" to com.pixel.smartstack.Arrangement.CENTERED,
+                        "Angled" to com.pixel.smartstack.Arrangement.ANGLED
+                    ).forEach { (label, value) ->
+                        FilterChip(
+                            selected = arrangement == value,
+                            onClick = { arrangement = value; sync() },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Loop widget", color = Color.White, modifier = Modifier.weight(1f))
+                    Switch(checked = loop, onCheckedChange = { loop = it; sync() })
+                }
+
+                Text("Cards", color = Color.Gray, fontSize = 14.sp)
+                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(cards) { card ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Switch(
+                                checked = card.enabled,
+                                onCheckedChange = { checked ->
+                                    cards = cards.map { if (it.id == card.id) it.copy(enabled = checked) else it }
+                                    sync()
+                                }
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(card.title, color = Color.White)
+                                Text(card.body.take(40), color = Color.Gray, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
+                Text("Add your own card", color = Color.Gray, fontSize = 14.sp)
                 OutlinedTextField(
-                    value = weatherText,
-                    onValueChange = { weatherText = it },
-                    label = { Text("Weather Card Text") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White, unfocusedTextColor = Color.White
-                    )
+                    value = newTitle, onValueChange = { newTitle = it },
+                    label = { Text("Title") }, modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                 )
                 OutlinedTextField(
-                    value = noteText,
-                    onValueChange = { noteText = it },
-                    label = { Text("Notes Card Items") },
-                    modifier = Modifier.fillMaxWidth().height(140.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White, unfocusedTextColor = Color.White
-                    )
+                    value = newBody, onValueChange = { newBody = it },
+                    label = { Text("Text") }, modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                 )
                 Button(
                     onClick = {
-                        prefs.edit().putString("note", noteText).putString("weather", weatherText).apply()
-                        val mgr = AppWidgetManager.getInstance(this@MainActivity)
-                        val ids = mgr.getAppWidgetIds(
-                            ComponentName(this@MainActivity, SmartStackReceiver::class.java)
-                        )
-                        mgr.notifyAppWidgetViewDataChanged(ids, R.id.stack)
+                        if (newTitle.isNotBlank()) {
+                            cards = cards + CardDef(
+                                id = "custom_${System.currentTimeMillis()}",
+                                title = newTitle, body = newBody, enabled = true
+                            )
+                            newTitle = ""; newBody = ""
+                            sync()
+                        }
                     },
                     shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth().height(54.dp)
-                ) {
-                    Text("Save & Sync Widget", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                }
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) { Text("Add Card") }
             }
         }
     }
